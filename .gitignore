@@ -134,3 +134,19 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Solidity / Hardhat / Truffle / Foundry
+artifacts/
+cache/
+build/
+out/
+lib/
+migrations/
+
+# 블록체인 커버리지
+coverage/
+coverage.json
+coverage-final.json
+
+# IPFS 업로드 캐시 (필요 시)
+ipfs_uploads/
