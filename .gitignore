@@ -101,3 +101,6 @@ lib/
 
 # ───────────── IPFS uploads (사용 시) ─────────────
 ipfs_uploads/
+
+# ───────────── macOS Specific ─────────────
+.DS_Store
