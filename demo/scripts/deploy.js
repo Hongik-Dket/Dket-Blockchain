@@ -1,16 +1,21 @@
-const hre = require("hardhat");
+require("dotenv").config();
+const { ethers } = require("hardhat");
 
 async function main() {
-  const unlockTime = Math.floor(Date.now() / 1000) + 60; // 지금부터 60초 뒤
-  const Lock = await hre.ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: hre.ethers.parseEther("0.01") });
-
-  await lock.waitForDeployment();
-
-  console.log("Lock deployed to:", await lock.getAddress());
+    const [deployer] = await ethers.getSigners();
+    console.log("Deploying contracts with the account:", deployer.address);
+  
+    const DketNFT = await ethers.getContractFactory("DketNFT");
+    const dketNFT = await DketNFT.deploy();
+    await dketNFT.waitForDeployment();
+    
+    console.log("DketNFT contract deployed to:", await dketNFT.getAddress());
+    
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
