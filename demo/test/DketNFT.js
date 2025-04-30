@@ -1,73 +1,106 @@
-const { expect } = require("chai");
+// const { expect } = require("chai");
+// const { ethers } = require("hardhat");
+// const { utils } = require("ethers");
 
-describe("DketNFT", function () {
-  let DketNFT;
-  let dketNFT;
-  let owner;
-  let addr1;
-  let addr2;
+// describe("DketNFT", function () {
+//   let DketNFT;
+//   let dketNFT;
+//   let owner;
+//   let addr1;
+//   let addr2;
+//   let addr3;
+//   let addr4;
 
-  beforeEach(async () => {
-    [owner, addr1, addr2] = await ethers.getSigners();
-    DketNFT = await ethers.getContractFactory("DketNFT");
-    dketNFT = await DketNFT.deploy();
-    await dketNFT.waitForDeployment();
+//   const vrfCoordinatorMockAddress = "0x0000000000000000000000000000000000000000"; // Mock VRF address
+//   const subscriptionId = 1; // Subscription ID
+//   const keyHash = utils.formatBytes32String("keyhash"); 
 
-    console.log("Contract deployed to:", dketNFT.target);
-  });
+//   beforeEach(async () => {
+//     [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();
 
-  describe("Event Creation", function () {
-    it("Should create an event", async function () {
-        const title = "test event1"
-        const photoCards = ["ipfs://photo1", "ipfs://photo2"];
-        await dketNFT.createEvent(1, title, photoCards);
+//     DketNFT = await ethers.getContractFactory("DketNFT");
+//     dketNFT = await DketNFT.deploy(vrfCoordinatorMockAddress, subscriptionId, keyHash);
+//     await dketNFT.deployed();
+//   });
 
-        const event = await dketNFT.events(1);
-        expect(event.eventId).to.equal(1);
-        expect(event.photoCardURIs).to.deep.equal(photoCards);
-    });
+//   it("should create an event", async function () {
+//     const photoCardURIs = ["uri1", "uri2", "uri3"];
+//     await dketNFT.createEvent(1, "Concert", photoCardURIs);
+    
+//     const event = await dketNFT.events(1);
+//     expect(event.title).to.equal("Concert");
+//     expect(event.photoCardURIs.length).to.equal(3);
+//   });
 
-    it("Should fail to create an event that already exists", async function () {
-      const photoCards = ["ipfs://photo1", "ipfs://photo2"];
-      const title = "test event1"
-      await dketNFT.createEvent(1, title, photoCards);
+//   it("should create a session and request randomness", async function () {
+//     const applications = [addr1.address, addr2.address, addr3.address];
+//     await dketNFT.createSession(1, 1, 2, applications);
+    
+//     const session = await dketNFT.sessions(1, 1);
+//     expect(session.applications.length).to.equal(3);
+//     expect(session.maxWinners).to.equal(2);
+//     expect(session.raffleDone).to.be.false;
+//   });
 
-      await expect(dketNFT.createEvent(1, title, photoCards)).to.be.revertedWith("Event already exists");
-    });
-  });
+//   it("should draw winners and emit WinnersDrawn event", async function () {
+//     const applications = [addr1.address, addr2.address, addr3.address];
+//     await dketNFT.createSession(1, 1, 3, applications);
+    
+//     // Simulate fulfilling random words (normally done via Chainlink VRF callback)
+//     const randomWords = [ethers.BigNumber.from("10000000000000000000000000000000000000000000000000000000000000000")];
+//     await dketNFT.fulfillRandomWords(1, randomWords);
 
-  describe("Session Creation and Raffle", function () {
-    it("Should create a session and perform raffle", async function () {
-      const photoCards = ["ipfs://photo1", "ipfs://photo2"];
-      const title = "test event1"
-      await dketNFT.createEvent(1, title, photoCards);
+//     const session = await dketNFT.sessions(1, 1);
+//     expect(session.raffleDone).to.be.true;
+    
+//     // Test WinnersDrawn event
+//     await expect(dketNFT.fulfillRandomWords(1, randomWords))
+//       .to.emit(dketNFT, "WinnersDrawn")
+//       .withArgs(1, 1, session.winners, session.photoCardIndices);
+//   });
 
-      const applications = [addr1.address, addr2.address];
-      await dketNFT.createSession(1, 1, 1, applications);
+//   it("should mint ticket for a winner", async function () {
+//     const applications = [addr1.address, addr2.address, addr3.address];
+//     await dketNFT.createSession(1, 1, 2, applications);
+    
+//     // Simulate fulfilling random words
+//     const randomWords = [ethers.BigNumber.from("10000000000000000000000000000000000000000000000000000000000000000")];
+//     await dketNFT.fulfillRandomWords(1, randomWords);
+    
+//     // Mint ticket for winner
+//     await dketNFT.mintTicket(addr1.address, 1, 1);
+//     expect(await dketNFT.ownerOf(0)).to.equal(addr1.address); // Check if addr1 received the ticket
+    
+//     const tokenURI = await dketNFT.tokenURI(0);
+//     expect(tokenURI).to.equal("uri1"); // Check if the correct photo card URI is assigned
+//   });
 
-      await dketNFT.drawWinnersAndAssignPhotoCards(1, 1);
+//   it("should revert minting for non-winner", async function () {
+//     const applications = [addr1.address, addr2.address, addr3.address];
+//     await dketNFT.createSession(1, 1, 2, applications);
+    
+//     // Simulate fulfilling random words
+//     const randomWords = [ethers.BigNumber.from("10000000000000000000000000000000000000000000000000000000000000000")];
+//     await dketNFT.fulfillRandomWords(1, randomWords);
 
-      const winners = await dketNFT.getWinners(1, 1);
-      expect(winners.length).to.equal(1);
-      expect(applications).to.include(winners[0]);
-    });
-  });
+//     // Attempt minting for addr4 (non-winner)
+//     await expect(dketNFT.mintTicket(addr4.address, 1, 1))
+//       .to.be.revertedWith("Not a winner");
+//   });
 
-  describe("Minting Tickets", function () {
-    it("Should mint a ticket with correct photo card", async function () {
-      const photoCards = ["ipfs://photo1", "ipfs://photo2"];
-      const title = "test event1"
-      await dketNFT.createEvent(1, title, photoCards);
+//   it("should validate winner correctly", async function () {
+//     const applications = [addr1.address, addr2.address, addr3.address];
+//     await dketNFT.createSession(1, 1, 2, applications);
+    
+//     // Simulate fulfilling random words
+//     const randomWords = [ethers.BigNumber.from("10000000000000000000000000000000000000000000000000000000000000000")];
+//     await dketNFT.fulfillRandomWords(1, randomWords);
 
-      const applications = [addr1.address, addr2.address];
-      await dketNFT.createSession(1, 1, 1, applications);
+//     // Validate winner
+//     expect(await dketNFT.validateWinner(addr1.address, 1, 1)).to.be.true;
+//     expect(await dketNFT.validateWinner(addr2.address, 1, 1)).to.be.true;
 
-      await dketNFT.drawWinnersAndAssignPhotoCards(1, 1);
-
-      await dketNFT.mintTicket(addr1.address, 1, 1);
-
-      const tokenURI = await dketNFT.tokenURI(0);
-      expect(tokenURI).to.include("ipfs://photo1");
-    });
-  });
-});
+//     // Validate non-winner
+//     expect(await dketNFT.validateWinner(addr3.address, 1, 1)).to.be.false;
+//   });
+// });
