@@ -3927,7 +3927,7 @@ abstract contract VRFConsumerBaseV2 {
 
 
 uint16 constant REQUEST_CONFIRMATIONS = 3;
-uint32 constant CALLBACK_GAS_LIMIT = 200000;
+uint32 constant CALLBACK_GAS_LIMIT = 500000;
 uint32 constant NUM_WORDS = 1;
 
 
