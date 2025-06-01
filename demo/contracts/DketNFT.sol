@@ -102,13 +102,18 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
         session.eventId = _eventId;
         session.sessionId = _sessionId;
-        session.isDrawn = false;
-        session.applications = _applications;
         session.mintCount = 0;
 
         emit SessionCreated(_eventId, _sessionId, _applications.length);
 
-        requestVRF(_sessionId);
+        if (_applications.length > 0) {
+            session.applications = _applications;
+            session.isDrawn = false;
+            requestVRF(_sessionId);
+        } else {
+            session.applications = new address[] (0) ;
+            session.isDrawn = true;
+        }
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
