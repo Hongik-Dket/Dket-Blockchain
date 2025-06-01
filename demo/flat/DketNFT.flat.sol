@@ -36,6 +36,7 @@ abstract contract Context {
 
 // File @openzeppelin/contracts/access/Ownable.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.0) (access/Ownable.sol)
 
 
@@ -136,6 +137,7 @@ abstract contract Ownable is Context {
 
 // File @openzeppelin/contracts/utils/introspection/IERC165.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/introspection/IERC165.sol)
 
 
@@ -163,12 +165,14 @@ interface IERC165 {
 
 // File @openzeppelin/contracts/interfaces/IERC165.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.0) (interfaces/IERC165.sol)
 
 
 
 // File @openzeppelin/contracts/token/ERC721/IERC721.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (token/ERC721/IERC721.sol)
 
 
@@ -304,12 +308,14 @@ interface IERC721 is IERC165 {
 
 // File @openzeppelin/contracts/interfaces/IERC721.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.0) (interfaces/IERC721.sol)
 
 
 
 // File @openzeppelin/contracts/interfaces/IERC4906.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (interfaces/IERC4906.sol)
 
 
@@ -330,6 +336,7 @@ interface IERC4906 is IERC165, IERC721 {
 
 // File @openzeppelin/contracts/interfaces/draft-IERC6093.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (interfaces/draft-IERC6093.sol)
 
 /**
@@ -493,6 +500,7 @@ interface IERC1155Errors {
 
 // File @openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.0) (token/ERC721/extensions/IERC721Metadata.sol)
 
 
@@ -520,6 +528,7 @@ interface IERC721Metadata is IERC721 {
 
 // File @openzeppelin/contracts/token/ERC721/IERC721Receiver.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (token/ERC721/IERC721Receiver.sol)
 
 
@@ -550,6 +559,7 @@ interface IERC721Receiver {
 
 // File @openzeppelin/contracts/token/ERC721/utils/ERC721Utils.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.3.0) (token/ERC721/utils/ERC721Utils.sol)
 
 
@@ -600,6 +610,7 @@ library ERC721Utils {
 
 // File @openzeppelin/contracts/utils/introspection/ERC165.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/introspection/ERC165.sol)
 
 
@@ -627,6 +638,7 @@ abstract contract ERC165 is IERC165 {
 
 // File @openzeppelin/contracts/utils/math/SafeCast.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/math/SafeCast.sol)
 // This file was procedurally generated from scripts/generate/templates/SafeCast.js.
 
@@ -1791,6 +1803,7 @@ library SafeCast {
 
 // File @openzeppelin/contracts/utils/Panic.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/Panic.sol)
 
 
@@ -1850,6 +1863,7 @@ library Panic {
 
 // File @openzeppelin/contracts/utils/math/Math.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.3.0) (utils/math/Math.sol)
 
 
@@ -2599,8 +2613,8 @@ library Math {
 
 // File @openzeppelin/contracts/utils/math/SignedMath.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/math/SignedMath.sol)
-
 
 /**
  * @dev Standard signed math utilities missing in the Solidity language.
@@ -2667,6 +2681,7 @@ library SignedMath {
 
 // File @openzeppelin/contracts/utils/Strings.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.3.0) (utils/Strings.sol)
 
 
@@ -3157,6 +3172,7 @@ library Strings {
 
 // File @openzeppelin/contracts/token/ERC721/ERC721.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (token/ERC721/ERC721.sol)
 
 
@@ -3613,6 +3629,7 @@ abstract contract ERC721 is Context, ERC165, IERC721, IERC721Metadata, IERC721Er
 
 // File @openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol@v5.3.0
 
+// Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.3.0) (token/ERC721/extensions/ERC721URIStorage.sol)
 
 
@@ -3674,6 +3691,7 @@ abstract contract ERC721URIStorage is IERC4906, ERC721 {
 
 // File @chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol@v0.8.0
 
+// Original license: SPDX_License_Identifier: MIT
 
 interface VRFCoordinatorV2Interface {
   /**
@@ -3788,6 +3806,7 @@ interface VRFCoordinatorV2Interface {
 
 // File @chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol@v0.8.0
 
+// Original license: SPDX_License_Identifier: MIT
 
 /** ****************************************************************************
  * @notice Interface for contracts using VRF randomness
@@ -3923,11 +3942,12 @@ abstract contract VRFConsumerBaseV2 {
 
 // File contracts/DketNFT.sol
 
+// Original license: SPDX_License_Identifier: MIT
 
 
 
 uint16 constant REQUEST_CONFIRMATIONS = 3;
-uint32 constant CALLBACK_GAS_LIMIT = 500000;
+uint32 constant CALLBACK_GAS_LIMIT = 200000;
 uint32 constant NUM_WORDS = 1;
 
 
@@ -3936,6 +3956,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     event EventCreated(uint256 indexed eventId, string title, address organizer);
     event SessionCreated(uint256 indexed eventId, uint256 indexed sessionId, uint256 applicationCount);
     event VRFRequestSent(uint256 indexed sessionId, uint256 indexed requestId);
+    event RandomFulfilled(uint256 indexed sessionId, uint256 randomWord);
     event WinnersDrawn(uint256 indexed sessionId, address[] winners);
     event TicketMinted(uint256 indexed sessionId, address user, uint256 tokenId, bool isWinner);
     event PublicSaleOpened(uint256 indexed eventId);
@@ -3972,6 +3993,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     mapping(uint256 => SessionInfo) private sessions;
 
     mapping(uint256 => uint256) private requestToSessionId;
+    mapping(uint256 => uint256) private sessionRandomSeed;
 
     mapping(uint256 => mapping(address => bool)) public minted;
     mapping(uint256 => mapping(address => uint256)) public winnerIndexMaps;
@@ -4025,7 +4047,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
         emit SessionCreated(_eventId, _sessionId, _applications.length);
 
-        drawWinners(_sessionId);
+        requestVRF(_sessionId);
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
@@ -4034,34 +4056,12 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         SessionInfo storage session = sessions[sessionId];
         require(!session.isDrawn, "Already drawn");
 
-        EventInfo storage _event = events[session.eventId];
+        sessionRandomSeed[sessionId] = randomWords[0];
 
-        address[] memory shuffled = shuffle(session.applications, randomWords[0]);
-        uint256 winnerCount = _event.maxWinners;
-        uint256 applyCount = session.applications.length;
-
-        session.winners = new address[](winnerCount < applyCount ? winnerCount : applyCount);
-        session.photoCardIndices = new uint256[](winnerCount);
-
-        for (uint256 i = 0; i < winnerCount; i++) {
-
-            if (i < applyCount) {
-                address winner = shuffled[i];
-                session.winners[i] = winner;
-                winnerIndexMaps[sessionId][winner] = i; 
-            }
-        
-            uint256 photoIndex = uint256(keccak256(abi.encode(randomWords[0], i, "card")))
-                % _event.photoCardURIs.length;
-            session.photoCardIndices[i] = photoIndex;
-        }
-
-        emit WinnersDrawn(sessionId, session.winners);
-
-        session.isDrawn = true;
+        emit RandomFulfilled(sessionId, randomWords[0]);
     }
 
-    function drawWinners(uint256 sessionId) public {
+    function requestVRF(uint256 sessionId) public {
         SessionInfo storage session = sessions[sessionId];
     
         require(session.sessionId != 0, "Session not exists");
@@ -4077,6 +4077,40 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         requestToSessionId[requestId] = sessionId;
 
         emit VRFRequestSent(sessionId, requestId);
+    }
+
+    function drawWinners(uint256 sessionId) external onlyOwner {
+        SessionInfo storage session = sessions[sessionId];
+        require(!session.isDrawn, "Already drawn");
+
+        uint256 randomSeed = sessionRandomSeed[sessionId];
+        require(randomSeed != 0, "Random seed not set");
+
+        EventInfo storage _event = events[session.eventId];
+
+        address[] memory shuffled = shuffle(session.applications, randomSeed);
+        uint256 winnerCount = _event.maxWinners;
+        uint256 applyCount = session.applications.length;
+
+        session.winners = new address[](winnerCount < applyCount ? winnerCount : applyCount);
+        session.photoCardIndices = new uint256[](winnerCount);
+
+        for (uint256 i = 0; i < winnerCount; i++) {
+
+            if (i < applyCount) {
+                address winner = shuffled[i];
+                session.winners[i] = winner;
+                winnerIndexMaps[sessionId][winner] = i; 
+            }
+        
+            uint256 photoIndex = uint256(keccak256(abi.encode(randomSeed, i, "card")))
+                % _event.photoCardURIs.length;
+            session.photoCardIndices[i] = photoIndex;
+        }
+
+        emit WinnersDrawn(sessionId, session.winners);
+
+        session.isDrawn = true;
     }
 
     function mintWinnerTicket(uint256 sessionId) external payable {

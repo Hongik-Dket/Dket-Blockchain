@@ -8,7 +8,7 @@ import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 
 uint16 constant REQUEST_CONFIRMATIONS = 3;
-uint32 constant CALLBACK_GAS_LIMIT = 500000;
+uint32 constant CALLBACK_GAS_LIMIT = 200000;
 uint32 constant NUM_WORDS = 1;
 
 
@@ -17,6 +17,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     event EventCreated(uint256 indexed eventId, string title, address organizer);
     event SessionCreated(uint256 indexed eventId, uint256 indexed sessionId, uint256 applicationCount);
     event VRFRequestSent(uint256 indexed sessionId, uint256 indexed requestId);
+    event RandomFulfilled(uint256 indexed sessionId, uint256 randomWord);
     event WinnersDrawn(uint256 indexed sessionId, address[] winners);
     event TicketMinted(uint256 indexed sessionId, address user, uint256 tokenId, bool isWinner);
     event PublicSaleOpened(uint256 indexed eventId);
@@ -53,6 +54,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     mapping(uint256 => SessionInfo) private sessions;
 
     mapping(uint256 => uint256) private requestToSessionId;
+    mapping(uint256 => uint256) private sessionRandomSeed;
 
     mapping(uint256 => mapping(address => bool)) public minted;
     mapping(uint256 => mapping(address => uint256)) public winnerIndexMaps;
@@ -106,7 +108,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
         emit SessionCreated(_eventId, _sessionId, _applications.length);
 
-        drawWinners(_sessionId);
+        requestVRF(_sessionId);
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
@@ -115,34 +117,12 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         SessionInfo storage session = sessions[sessionId];
         require(!session.isDrawn, "Already drawn");
 
-        EventInfo storage _event = events[session.eventId];
+        sessionRandomSeed[sessionId] = randomWords[0];
 
-        address[] memory shuffled = shuffle(session.applications, randomWords[0]);
-        uint256 winnerCount = _event.maxWinners;
-        uint256 applyCount = session.applications.length;
-
-        session.winners = new address[](winnerCount < applyCount ? winnerCount : applyCount);
-        session.photoCardIndices = new uint256[](winnerCount);
-
-        for (uint256 i = 0; i < winnerCount; i++) {
-
-            if (i < applyCount) {
-                address winner = shuffled[i];
-                session.winners[i] = winner;
-                winnerIndexMaps[sessionId][winner] = i; 
-            }
-        
-            uint256 photoIndex = uint256(keccak256(abi.encode(randomWords[0], i, "card")))
-                % _event.photoCardURIs.length;
-            session.photoCardIndices[i] = photoIndex;
-        }
-
-        emit WinnersDrawn(sessionId, session.winners);
-
-        session.isDrawn = true;
+        emit RandomFulfilled(sessionId, randomWords[0]);
     }
 
-    function drawWinners(uint256 sessionId) public {
+    function requestVRF(uint256 sessionId) public {
         SessionInfo storage session = sessions[sessionId];
     
         require(session.sessionId != 0, "Session not exists");
@@ -158,6 +138,40 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         requestToSessionId[requestId] = sessionId;
 
         emit VRFRequestSent(sessionId, requestId);
+    }
+
+    function drawWinners(uint256 sessionId) external onlyOwner {
+        SessionInfo storage session = sessions[sessionId];
+        require(!session.isDrawn, "Already drawn");
+
+        uint256 randomSeed = sessionRandomSeed[sessionId];
+        require(randomSeed != 0, "Random seed not set");
+
+        EventInfo storage _event = events[session.eventId];
+
+        address[] memory shuffled = shuffle(session.applications, randomSeed);
+        uint256 winnerCount = _event.maxWinners;
+        uint256 applyCount = session.applications.length;
+
+        session.winners = new address[](winnerCount < applyCount ? winnerCount : applyCount);
+        session.photoCardIndices = new uint256[](winnerCount);
+
+        for (uint256 i = 0; i < winnerCount; i++) {
+
+            if (i < applyCount) {
+                address winner = shuffled[i];
+                session.winners[i] = winner;
+                winnerIndexMaps[sessionId][winner] = i; 
+            }
+        
+            uint256 photoIndex = uint256(keccak256(abi.encode(randomSeed, i, "card")))
+                % _event.photoCardURIs.length;
+            session.photoCardIndices[i] = photoIndex;
+        }
+
+        emit WinnersDrawn(sessionId, session.winners);
+
+        session.isDrawn = true;
     }
 
     function mintWinnerTicket(uint256 sessionId) external payable {
