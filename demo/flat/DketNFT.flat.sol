@@ -3955,12 +3955,19 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     event EventCreated(uint256 indexed eventId, string title, address organizer);
     event SessionCreated(uint256 indexed eventId, uint256 indexed sessionId, uint256 applicationCount);
+
     event VRFRequestSent(uint256 indexed sessionId, uint256 indexed requestId);
     event RandomFulfilled(uint256 indexed sessionId, uint256 randomWord);
+
     event WinnersDrawn(uint256 indexed sessionId, address[] winners);
-    event TicketMinted(uint256 indexed sessionId, address user, uint256 tokenId, string uri, bool isWinner);
+    event SessionMinted(uint256 indexed sessionId, uint256[] tokenIds);
+
+    event TokenApproved(uint256 indexed sessionId, uint256 tokenId, address to);
+    event ApproveCanceled(uint256 indexed tokenId, address from);
+
+    event PaymentTransferred(address to, uint256 indexed sessionId, uint256 indexed tokenId, uint256 amount);
+
     event PublicSaleOpened(uint256 indexed eventId);
-    event PaymentTransferred(address to, uint256 amount);
 
 
     VRFCoordinatorV2Interface COORDINATOR;
@@ -3981,8 +3988,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     struct SessionInfo {
         uint256 eventId;
         uint256 sessionId;
-        bool isDrawn;
-        uint256 mintCount;
+        uint256[] tokenIds;
         address[] applications;
         address[] winners;
     }
@@ -3990,10 +3996,15 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     mapping(uint256 => EventInfo) public events;
     mapping(uint256 => SessionInfo) private sessions;
 
+    enum SessionStatus { Created, Drawn, Minted, SaleOpened }
+    mapping(uint256 => SessionStatus) public sessionStatus;
+
     mapping(uint256 => uint256) private requestToSessionId;
     mapping(uint256 => uint256) private sessionRandomSeed;
 
-    mapping(uint256 => mapping(address => bool)) public minted;
+    mapping(uint256 => mapping(address => bool)) public ticketed;
+    mapping(uint256 => bool) public paid;
+    
     mapping(uint256 => mapping(address => uint256)) public winnerIndexMaps;
 
     constructor(address vrfCoordinator, uint64 subscriptionId, bytes32 keyHash) 
@@ -4037,21 +4048,17 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
         session.eventId = _eventId;
         session.sessionId = _sessionId;
-        session.mintCount = 0;
-        session.isDrawn = false;
+        sessionStatus[_sessionId] = SessionStatus.Created;
 
         emit SessionCreated(_eventId, _sessionId, _applications.length);
 
-        if (_applications.length > 0) {
-            session.applications = _applications;
-        } else {
-            session.applications = new address[] (0) ;
-        }
+        session.applications = _applications;
 
         requestVRF(_sessionId);
     }
 
     function requestVRF(uint256 sessionId) public {
+        require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
     
         require(session.sessionId != 0, "Session not exists");
@@ -4071,9 +4078,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
         uint256 sessionId = requestToSessionId[requestId];
-
-        SessionInfo storage session = sessions[sessionId];
-        require(!session.isDrawn, "Already drawn");
+        require(sessions[sessionId].sessionId != 0, "Invalid sessionId from requestId");
 
         sessionRandomSeed[sessionId] = randomWords[0];
 
@@ -4081,8 +4086,9 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     }
 
     function drawSession(uint256 sessionId) external onlyOwner {
+        require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
-        require(!session.isDrawn, "Already drawn");
+        require(sessionStatus[sessionId] == SessionStatus.Created, "Invalid state");
 
         uint256 randomSeed = sessionRandomSeed[sessionId];
         require(randomSeed != 0, "Random seed not set");
@@ -4094,7 +4100,10 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     }
 
     function drawWinners(uint256 sessionId, uint256 randomSeed) private {
+        require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
+
+        require(events[session.eventId].eventId != 0, "Invalid event");
         EventInfo storage _event = events[session.eventId];
 
         uint256 winnerCount = _event.maxWinners;
@@ -4122,47 +4131,102 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     }
 
     function setDrawn(uint256 sessionId) private {
-        SessionInfo storage session = sessions[sessionId];
-        session.isDrawn = true;
-    }
-    
-    function mintWinnerTicket(uint256 sessionId, string memory uri) external payable {
-        SessionInfo storage session = sessions[sessionId];
-        EventInfo storage _event = events[session.eventId];
-        address to = msg.sender;
-
-        require(session.isDrawn, "Not drawn");
-        require(!_event.publicSale, "Public sale opened");
-        require(validateWinner(to, sessionId), "Not a winner");
-        require(!minted[sessionId][to], "Ticket already minted");
-        require(msg.value == _event.price, "Incorrect payment amount");
-
-        (bool success, ) = payable(_event.organizer).call{value: msg.value}("");
-        require(success, "Payment failed");
-        emit PaymentTransferred(_event.organizer, msg.value);
-
-        mint(to, sessionId, uri, true);
+        sessionStatus[sessionId] = SessionStatus.Drawn;
     }
 
-    function mintPublicTicket(uint256 sessionId, string memory uri) external payable {
+    function mintSessionTicket(uint256 sessionId, string[] memory uris) external onlyOwner {
+        require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
-        EventInfo storage _event = events[session.eventId];
-        address to = msg.sender;
-
-        require(_event.publicSale, "Pulic sale not opened");
-        require(!minted[sessionId][to], "Ticket already minted");
-        require(msg.value == _event.price, "Incorrect payment amount");
-        require(session.mintCount < _event.maxWinners, "Soldout");
-
-
-        (bool success, ) = payable(_event.organizer).call{value: msg.value}("");
-        require(success, "Payment failed");
-        emit PaymentTransferred(_event.organizer, msg.value);
         
-        mint(to, sessionId, uri, false);
+        require(events[session.eventId].eventId != 0, "Invalid event");
+        EventInfo storage _event = events[session.eventId];
+
+        require(sessionStatus[sessionId] == SessionStatus.Drawn, "Invalid state");
+        require(uris.length == _event.maxWinners, "Invalid number of URIs");
+
+        address to = msg.sender;
+
+        for (uint256 i = 0; i < uris.length; i++) {
+            uint256 currentTokenId = nextTokenId++;
+
+            _safeMint(to, currentTokenId);
+            _setTokenURI(currentTokenId, uris[i]);
+
+            session.tokenIds.push(currentTokenId);
+        } 
+
+        sessionStatus[sessionId] = SessionStatus.Minted;
+
+        emit SessionMinted(sessionId, session.tokenIds);
+    }
+
+    function approveToken(address to, uint256 sessionId) public onlyOwner {
+        require(sessions[sessionId].sessionId != 0, "Invalid session");
+        SessionInfo storage session = sessions[sessionId];
+        
+        require(events[session.eventId].eventId != 0, "Invalid event");
+        EventInfo storage _event = events[session.eventId];
+
+        address owner = msg.sender;
+
+        require(sessionStatus[sessionId] == SessionStatus.Minted, "Invalid state");
+        require(to != owner, "ERC721: approval to current owner");
+
+        if (!_event.publicSale)
+            require(validateWinner(to, sessionId), "Not a winner");
+        
+        require(!ticketed[sessionId][to], "Ticket already paid");
+
+        for (uint256 i = 0; i < session.tokenIds.length; i++) {
+            uint256 tid = session.tokenIds[i];
+
+            if (getApproved(tid) == address(0)) {
+                _approve(to, tid, owner);
+
+                emit TokenApproved(sessionId, tid, to);
+                return;
+            }
+        }
+
+        revert("No available token to approve");
+    }
+
+    function cancelApprove(address from, uint256 tokenId) public onlyOwner {
+        require(getApproved(tokenId) == from, "Not approved to target");
+        require(ownerOf(tokenId) == msg.sender, "Already Transferred");
+
+        _approve(address(0), tokenId, msg.sender);
+
+        emit ApproveCanceled(tokenId, from);
+    }
+
+    function buyTicket(address from, address to, uint256 tokenId, uint256 sessionId) public payable {
+        require(getApproved(tokenId) == to, "Not approved to target");
+        require(!ticketed[sessionId][to], "You already have a ticket");
+        require(!paid[tokenId], "Ticket already bought");
+        require(msg.sender == to, "Only approved user can buy the ticket");
+
+        require(sessions[sessionId].sessionId != 0, "Invalid session");
+        SessionInfo storage session = sessions[sessionId];
+        
+        require(events[session.eventId].eventId != 0, "Invalid event");
+        EventInfo storage _event = events[session.eventId];
+
+        require(msg.value == _event.price, "Incorrect payment amount");
+
+        (bool success, ) = payable(_event.organizer).call{value: msg.value}("");
+        require(success, "Payment failed");
+
+        _safeTransfer(from, to, tokenId, "");
+
+        paid[tokenId] = true;
+        ticketed[sessionId][to] = true;
+
+       emit PaymentTransferred(to, sessionId, tokenId, msg.value);
     }
 
     function openPublicSale(uint256 eventId) external onlyOwner {
+        require(events[eventId].eventId != 0, "Invalid event");
         EventInfo storage _event = events[eventId];
         _event.publicSale = true;
         emit PublicSaleOpened(eventId); 
@@ -4170,24 +4234,22 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     function getSessionInfo(uint256 sessionId) external view returns (
         uint256 eventId,
-        bool isDrawn,
-        uint256 mintCount,
         address[] memory applications,
-        address[] memory winners
+        address[] memory winners,
+        uint256[] memory tokenIds
     )
     {
         SessionInfo storage session = sessions[sessionId];
         return (
             session.eventId,
-            session.isDrawn,
-            session.mintCount,
             session.applications,
-            session.winners
+            session.winners,
+            session.tokenIds
         );
     }
 
     function shuffle(address[] memory array, uint256 seed) private pure returns (address[] memory) {
-        if (array.length == 0) return array;
+        if (array.length <= 1) return array;
 
         for (uint256 i = array.length - 1; i > 0; i--) {
             uint256 j = uint256(keccak256(abi.encodePacked(seed, i))) % (i + 1);
@@ -4205,21 +4267,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             return true;
         else
             return false;
-    }
-
-    function mint(address to, uint256 sessionId, string memory uri, bool isWinner) private {
-        SessionInfo storage session = sessions[sessionId];
-
-        minted[sessionId][to] = true;
-        session.mintCount++;
-
-        uint256 currentTokenId = nextTokenId;
-        nextTokenId++;
-
-        _safeMint(to, currentTokenId);
-        _setTokenURI(currentTokenId, uri);
-
-        emit TicketMinted(sessionId, to, currentTokenId, uri, isWinner);
     }
 
 }
