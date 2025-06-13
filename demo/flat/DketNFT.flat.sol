@@ -3947,7 +3947,7 @@ abstract contract VRFConsumerBaseV2 {
 
 
 uint16 constant REQUEST_CONFIRMATIONS = 3;
-uint32 constant CALLBACK_GAS_LIMIT = 200000;
+uint32 constant CALLBACK_GAS_LIMIT = 300000;
 uint32 constant NUM_WORDS = 1;
 
 
@@ -3958,7 +3958,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     event VRFRequestSent(uint256 indexed sessionId, uint256 indexed requestId);
     event RandomFulfilled(uint256 indexed sessionId, uint256 randomWord);
     event WinnersDrawn(uint256 indexed sessionId, address[] winners);
-    event TicketMinted(uint256 indexed sessionId, address user, uint256 tokenId, bool isWinner);
+    event TicketMinted(uint256 indexed sessionId, address user, uint256 tokenId, string uri, bool isWinner);
     event PublicSaleOpened(uint256 indexed eventId);
     event PaymentTransferred(address to, uint256 amount);
 
@@ -3976,7 +3976,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         uint256 maxWinners;
         uint256 price;
         bool publicSale;
-        string[] photoCardURIs;
     }
 
     struct SessionInfo {
@@ -3986,7 +3985,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         uint256 mintCount;
         address[] applications;
         address[] winners;
-        uint256[] photoCardIndices;
     }
 
     mapping(uint256 => EventInfo) public events;
@@ -4013,8 +4011,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         address _organizer,
         string memory _title,
         uint256 _maxWinners,
-        uint256 _price,
-        string[] memory _photoCardURIs
+        uint256 _price
     ) external onlyOwner {
         require(events[_eventId].eventId == 0, "Event already exists");
 
@@ -4024,8 +4021,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             title: _title,
             maxWinners: _maxWinners,
             price: _price,
-            publicSale: false,
-            photoCardURIs: _photoCardURIs
+            publicSale: false
         });
 
         emit EventCreated(_eventId, _title, _organizer);
@@ -4042,15 +4038,14 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         session.eventId = _eventId;
         session.sessionId = _sessionId;
         session.mintCount = 0;
+        session.isDrawn = false;
 
         emit SessionCreated(_eventId, _sessionId, _applications.length);
 
         if (_applications.length > 0) {
             session.applications = _applications;
-            session.isDrawn = false;
         } else {
             session.applications = new address[] (0) ;
-            session.isDrawn = true;
         }
 
         requestVRF(_sessionId);
@@ -4094,8 +4089,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
         if (session.applications.length > 0)
             drawWinners(sessionId, randomSeed);
-        else
-            drawPhotoCards(sessionId, randomSeed);
+        
+        setDrawn(sessionId);
     }
 
     function drawWinners(uint256 sessionId, uint256 randomSeed) private {
@@ -4124,27 +4119,14 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         }
 
         emit WinnersDrawn(sessionId, session.winners);
+    }
 
-        drawPhotoCards(sessionId, randomSeed);
+    function setDrawn(uint256 sessionId) private {
+        SessionInfo storage session = sessions[sessionId];
         session.isDrawn = true;
     }
-
-    function drawPhotoCards(uint256 sessionId, uint256 randomSeed) private {
-        SessionInfo storage session = sessions[sessionId];
-        EventInfo storage _event = events[session.eventId];
-
-        uint256 capacity = _event.maxWinners;
-
-        session.photoCardIndices = new uint256[](capacity);
-
-        for (uint256 i = 0; i < capacity; i++) {
-            uint256 photoIndex = uint256(keccak256(abi.encode(randomSeed, i, "card")))
-                % _event.photoCardURIs.length;
-            session.photoCardIndices[i] = photoIndex;
-        }
-    }
-
-    function mintWinnerTicket(uint256 sessionId) external payable {
+    
+    function mintWinnerTicket(uint256 sessionId, string memory uri) external payable {
         SessionInfo storage session = sessions[sessionId];
         EventInfo storage _event = events[session.eventId];
         address to = msg.sender;
@@ -4159,10 +4141,10 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         require(success, "Payment failed");
         emit PaymentTransferred(_event.organizer, msg.value);
 
-        mint(to, sessionId, true);
+        mint(to, sessionId, uri, true);
     }
 
-    function mintPublicTicket(uint256 sessionId) external payable {
+    function mintPublicTicket(uint256 sessionId, string memory uri) external payable {
         SessionInfo storage session = sessions[sessionId];
         EventInfo storage _event = events[session.eventId];
         address to = msg.sender;
@@ -4177,7 +4159,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         require(success, "Payment failed");
         emit PaymentTransferred(_event.organizer, msg.value);
         
-        mint(to, sessionId, false);
+        mint(to, sessionId, uri, false);
     }
 
     function openPublicSale(uint256 eventId) external onlyOwner {
@@ -4191,8 +4173,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         bool isDrawn,
         uint256 mintCount,
         address[] memory applications,
-        address[] memory winners,
-        uint256[] memory photoCardIndices
+        address[] memory winners
     )
     {
         SessionInfo storage session = sessions[sessionId];
@@ -4201,8 +4182,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             session.isDrawn,
             session.mintCount,
             session.applications,
-            session.winners,
-            session.photoCardIndices
+            session.winners
         );
     }
 
@@ -4210,7 +4190,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         if (array.length == 0) return array;
 
         for (uint256 i = array.length - 1; i > 0; i--) {
-            uint256 j = uint256(keccak256(abi.encode(seed, i))) % (i + 1);
+            uint256 j = uint256(keccak256(abi.encodePacked(seed, i))) % (i + 1);
             (array[i], array[j]) = (array[j], array[i]);
         }
 
@@ -4218,8 +4198,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     }
 
     function validateWinner(address user, uint256 sessionId) private view returns (bool) {
-        require(msg.sender == owner() || msg.sender == user, "Not authorized");
-
         SessionInfo storage session = sessions[sessionId];
         uint256 winnerIndex = winnerIndexMaps[sessionId][user];
 
@@ -4229,20 +4207,19 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             return false;
     }
 
-    function mint(address to, uint256 sessionId, bool isWinner) private {
+    function mint(address to, uint256 sessionId, string memory uri, bool isWinner) private {
         SessionInfo storage session = sessions[sessionId];
-        EventInfo storage _event = events[session.eventId];
 
-        string memory tokenURI = _event.photoCardURIs[session.photoCardIndices[session.mintCount]];
-        _safeMint(to, nextTokenId);
-        _setTokenURI(nextTokenId, tokenURI);
-
-        emit TicketMinted(sessionId, to, nextTokenId, isWinner);
-
-        nextTokenId++;
-        
         minted[sessionId][to] = true;
         session.mintCount++;
+
+        uint256 currentTokenId = nextTokenId;
+        nextTokenId++;
+
+        _safeMint(to, currentTokenId);
+        _setTokenURI(currentTokenId, uri);
+
+        emit TicketMinted(sessionId, to, currentTokenId, uri, isWinner);
     }
 
 }
