@@ -21,6 +21,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     event RandomFulfilled(uint256 indexed sessionId, uint256 randomWord);
 
     event WinnersDrawn(uint256 indexed sessionId, address[] winners);
+    event SetDrawn(uint256 indexed sessionId);
     event SessionMinted(uint256 indexed sessionId, uint256[] tokenIds);
 
     event PaymentTransferred(address to, uint256 indexed sessionId, uint256 indexed tokenId, uint256 amount);
@@ -190,6 +191,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     function setDrawn(uint256 sessionId) private {
         sessionStatus[sessionId] = SessionStatus.Drawn;
+
+        emit SetDrawn(sessionId);
     }
 
     function mintSessionTicket(uint256 sessionId, string[] memory uris) external onlyOwner {
