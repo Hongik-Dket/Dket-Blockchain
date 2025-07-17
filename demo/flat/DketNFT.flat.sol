@@ -3953,8 +3953,8 @@ uint32 constant NUM_WORDS = 1;
 
 contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
-    event EventCreated(uint256 indexed eventId, string title, address organizer);
-    event SessionCreated(uint256 indexed eventId, uint256 indexed sessionId, uint256 applicationCount);
+    event ConcertCreated(uint256 indexed concertId, string title, address organizer);
+    event SessionCreated(uint256 indexed concertId, uint256 indexed sessionId, uint256 applicationCount);
 
     event VRFRequestSent(uint256 indexed sessionId, uint256 indexed requestId);
     event RandomFulfilled(uint256 indexed sessionId, uint256 randomWord);
@@ -3965,7 +3965,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     event PaymentTransferred(address to, uint256 indexed sessionId, uint256 indexed tokenId, uint256 amount);
 
-    event PublicSaleOpened(uint256 indexed eventId);
+    event PublicSaleOpened(uint256 indexed concertId);
 
 
     VRFCoordinatorV2Interface COORDINATOR;
@@ -3974,8 +3974,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     uint256 private nextTokenId;
 
-    struct EventInfo {
-        uint256 eventId;
+    struct ConcertInfo {
+        uint256 concertId;
         address organizer;
         string title;
         uint256 maxWinners;
@@ -3984,14 +3984,14 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     }
 
     struct SessionInfo {
-        uint256 eventId;
+        uint256 concertId;
         uint256 sessionId;
         uint256[] tokenIds;
         address[] applications;
         address[] winners;
     }
 
-    mapping(uint256 => EventInfo) public events;
+    mapping(uint256 => ConcertInfo) public concerts;
     mapping(uint256 => SessionInfo) private sessions;
 
     enum SessionStatus { Created, Drawn, Minted }
@@ -4015,17 +4015,17 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             nextTokenId = 1;
         } 
     
-    function createEvent(
-        uint256 _eventId,
+    function createConcert(
+        uint256 _concertId,
         address _organizer,
         string memory _title,
         uint256 _maxWinners,
         uint256 _price
     ) external onlyOwner {
-        require(events[_eventId].eventId == 0, "Event already exists");
+        require(concerts[_concertId].concertId == 0, "Concert already exists");
 
-        events[_eventId] = EventInfo({
-            eventId: _eventId,
+        concerts[_concertId] = ConcertInfo({
+            concertId: _concertId,
             organizer: _organizer,
             title: _title,
             maxWinners: _maxWinners,
@@ -4033,22 +4033,22 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             publicSale: false
         });
 
-        emit EventCreated(_eventId, _title, _organizer);
+        emit ConcertCreated(_concertId, _title, _organizer);
     }
 
     function createSession(
-        uint256 _eventId,
+        uint256 _concertId,
         uint256 _sessionId,
         address[] memory _applications
     ) external onlyOwner {
         SessionInfo storage session = sessions[_sessionId];
         require(session.sessionId == 0, "Session exists");
 
-        session.eventId = _eventId;
+        session.concertId = _concertId;
         session.sessionId = _sessionId;
         sessionStatus[_sessionId] = SessionStatus.Created;
 
-        emit SessionCreated(_eventId, _sessionId, _applications.length);
+        emit SessionCreated(_concertId, _sessionId, _applications.length);
 
         session.applications = _applications;
 
@@ -4101,10 +4101,10 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
 
-        require(events[session.eventId].eventId != 0, "Invalid event");
-        EventInfo storage _event = events[session.eventId];
+        require(concerts[session.concertId].concertId != 0, "Invalid concert");
+        ConcertInfo storage concert = concerts[session.concertId];
 
-        uint256 winnerCount = _event.maxWinners;
+        uint256 winnerCount = concert.maxWinners;
         uint256 applyCount = session.applications.length;
 
         if (applyCount > winnerCount) {
@@ -4138,11 +4138,11 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
         
-        require(events[session.eventId].eventId != 0, "Invalid event");
-        EventInfo storage _event = events[session.eventId];
+        require(concerts[session.concertId].concertId != 0, "Invalid concert");
+        ConcertInfo storage concert = concerts[session.concertId];
 
         require(sessionStatus[sessionId] == SessionStatus.Drawn, "Invalid state");
-        require(uris.length == _event.maxWinners, "Invalid number of URIs");
+        require(uris.length == concert.maxWinners, "Invalid number of URIs");
 
         address to = owner();
 
@@ -4169,16 +4169,16 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
         
-        require(events[session.eventId].eventId != 0, "Invalid event");
-        EventInfo storage _event = events[session.eventId];
+        require(concerts[session.concertId].concertId != 0, "Invalid concert");
+        ConcertInfo storage concert = concerts[session.concertId];
 
-        require(msg.value == _event.price, "Incorrect payment amount");
+        require(msg.value == concert.price, "Incorrect payment amount");
         require(sessionStatus[sessionId] == SessionStatus.Minted, "Invalid state");
 
-        if (!_event.publicSale)
+        if (!concert.publicSale)
             require(validateWinner(buyer, sessionId), "Not a winner");
 
-        (bool success, ) = payable(_event.organizer).call{value: msg.value}("");
+        (bool success, ) = payable(concert.organizer).call{value: msg.value}("");
         require(success, "Payment failed");
 
         uint256 randomSeed = uint256(keccak256(abi.encodePacked(
@@ -4199,15 +4199,15 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         emit PaymentTransferred(buyer, sessionId, tokenId, msg.value);
     }
 
-    function openPublicSale(uint256 eventId) external onlyOwner {
-        require(events[eventId].eventId != 0, "Invalid event");
-        EventInfo storage _event = events[eventId];
-        _event.publicSale = true;
-        emit PublicSaleOpened(eventId); 
+    function openPublicSale(uint256 concertId) external onlyOwner {
+        require(concerts[concertId].concertId != 0, "Invalid concert");
+        ConcertInfo storage concert = concerts[concertId];
+        concert.publicSale = true;
+        emit PublicSaleOpened(concertId); 
     }
 
     function getSessionInfo(uint256 sessionId) external view returns (
-        uint256 eventId,
+        uint256 concertId,
         address[] memory applications,
         address[] memory winners,
         uint256[] memory tokenIds
@@ -4215,7 +4215,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     {
         SessionInfo storage session = sessions[sessionId];
         return (
-            session.eventId,
+            session.concertId,
             session.applications,
             session.winners,
             session.tokenIds
