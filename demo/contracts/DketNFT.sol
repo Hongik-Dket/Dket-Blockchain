@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
@@ -27,6 +28,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     event PaymentTransferred(address to, uint256 indexed sessionId, uint256 indexed tokenId, uint256 amount);
 
     event PublicSaleOpened(uint256 indexed concertId);
+
+    event TransferAgentSet(address indexed agent, bool allowed);
 
 
     VRFCoordinatorV2Interface COORDINATOR;
@@ -66,6 +69,9 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     
     mapping(uint256 => mapping(address => uint256)) public winnerIndexMaps;
 
+    mapping(address => bool) public isTransferAgent;
+
+
     constructor(address vrfCoordinator, uint64 subscriptionId, bytes32 keyHash) 
         ERC721("DketNFT", "Dket") 
         Ownable(msg.sender)
@@ -74,7 +80,41 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             s_subscriptionId = subscriptionId;
             s_keyHash = keyHash;
             nextTokenId = 1;
-        } 
+
+            isTransferAgent[address(this)] = true;
+    } 
+    
+    bool private _internalMove;
+
+    function setTransferAgent(address agent, bool allowed) external onlyOwner {
+        isTransferAgent[agent] = allowed;
+        emit TransferAgentSet(agent, allowed);
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal override(ERC721) returns (address)
+    {
+        address from = _ownerOf(tokenId);
+
+        if (from != address(0) && to != address(0)) {
+            require(_internalMove || isTransferAgent[_msgSender()], "Transfers restricted");
+        }
+        return super._update(to, tokenId, auth);
+    }
+
+    function setApprovalForAll(address operator, bool approved)
+        public override(ERC721, IERC721) 
+    {
+        require(isTransferAgent[operator], "Only transfer agents can be operators");
+        super.setApprovalForAll(operator, approved);
+    }
+
+    function approve(address to, uint256 tokenId)
+        public override(ERC721, IERC721) 
+    {
+        require(isTransferAgent[to], "Only transfer agents can be approved");
+        super.approve(to, tokenId);
+    }
     
     function createConcert(
         uint256 _concertId,
