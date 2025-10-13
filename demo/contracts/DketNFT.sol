@@ -31,10 +31,11 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     event TransferAgentSet(address indexed agent, bool allowed);
 
+    address public constant VRF_COORDINATOR = 0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625;
+    bytes32 public constant KEY_HASH = 0x474e34a077df58807dbe9c96d3c009d62c0a9c88e0b6c7b3e5f48d8f9e33a19b;
 
-    VRFCoordinatorV2Interface COORDINATOR;
     uint64 s_subscriptionId;
-    bytes32 s_keyHash;
+    VRFCoordinatorV2Interface public immutable COORDINATOR;
 
     uint256 private nextTokenId;
 
@@ -72,16 +73,18 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     mapping(address => bool) public isTransferAgent;
 
 
-    constructor(address vrfCoordinator, uint64 subscriptionId, bytes32 keyHash) 
+    constructor(uint64 subscriptionId) 
         ERC721("DketNFT", "Dket") 
         Ownable(msg.sender)
-        VRFConsumerBaseV2(vrfCoordinator) {
-            COORDINATOR = VRFCoordinatorV2Interface(vrfCoordinator);
+        VRFConsumerBaseV2(VRF_COORDINATOR) {
+            COORDINATOR = VRFCoordinatorV2Interface(VRF_COORDINATOR);
             s_subscriptionId = subscriptionId;
-            s_keyHash = keyHash;
             nextTokenId = 1;
 
             isTransferAgent[address(this)] = true;
+            isTransferAgent[address(msg.sender)] = true;
+
+            setApprovalForAll(address(msg.sender), true);
     } 
     
     bool private _internalMove;
@@ -163,7 +166,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         require(session.sessionId != 0, "Session not exists");
 
         uint256 requestId = COORDINATOR.requestRandomWords(
-            s_keyHash,
+            KEY_HASH,
             s_subscriptionId,
             REQUEST_CONFIRMATIONS,
             CALLBACK_GAS_LIMIT,
