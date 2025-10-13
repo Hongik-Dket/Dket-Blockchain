@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
@@ -28,10 +29,13 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     event PublicSaleOpened(uint256 indexed concertId);
 
+    event TransferAgentSet(address indexed agent, bool allowed);
 
-    VRFCoordinatorV2Interface COORDINATOR;
+    address public constant VRF_COORDINATOR = 0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625;
+    bytes32 public constant KEY_HASH = 0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c;
+
     uint64 s_subscriptionId;
-    bytes32 s_keyHash;
+    VRFCoordinatorV2Interface public immutable COORDINATOR;
 
     uint256 private nextTokenId;
 
@@ -66,15 +70,54 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     
     mapping(uint256 => mapping(address => uint256)) public winnerIndexMaps;
 
-    constructor(address vrfCoordinator, uint64 subscriptionId, bytes32 keyHash) 
+    mapping(address => bool) public isTransferAgent;
+
+
+    constructor(uint64 subscriptionId) 
         ERC721("DketNFT", "Dket") 
         Ownable(msg.sender)
-        VRFConsumerBaseV2(vrfCoordinator) {
-            COORDINATOR = VRFCoordinatorV2Interface(vrfCoordinator);
+        VRFConsumerBaseV2(VRF_COORDINATOR) {
+            COORDINATOR = VRFCoordinatorV2Interface(VRF_COORDINATOR);
             s_subscriptionId = subscriptionId;
-            s_keyHash = keyHash;
             nextTokenId = 1;
-        } 
+
+            isTransferAgent[address(this)] = true;
+            isTransferAgent[address(msg.sender)] = true;
+
+            setApprovalForAll(address(msg.sender), true);
+    } 
+    
+    bool private _internalMove;
+
+    function setTransferAgent(address agent, bool allowed) external onlyOwner {
+        isTransferAgent[agent] = allowed;
+        emit TransferAgentSet(agent, allowed);
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal override(ERC721) returns (address)
+    {
+        address from = _ownerOf(tokenId);
+
+        if (from != address(0) && to != address(0)) {
+            require(_internalMove || isTransferAgent[_msgSender()], "Transfers restricted");
+        }
+        return super._update(to, tokenId, auth);
+    }
+
+    function setApprovalForAll(address operator, bool approved)
+        public override(ERC721, IERC721) 
+    {
+        require(isTransferAgent[operator], "Only transfer agents can be operators");
+        super.setApprovalForAll(operator, approved);
+    }
+
+    function approve(address to, uint256 tokenId)
+        public override(ERC721, IERC721) 
+    {
+        require(isTransferAgent[to], "Only transfer agents can be approved");
+        super.approve(to, tokenId);
+    }
     
     function createConcert(
         uint256 _concertId,
@@ -123,7 +166,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         require(session.sessionId != 0, "Session not exists");
 
         uint256 requestId = COORDINATOR.requestRandomWords(
-            s_keyHash,
+            KEY_HASH,
             s_subscriptionId,
             REQUEST_CONFIRMATIONS,
             CALLBACK_GAS_LIMIT,
