@@ -32,7 +32,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     event TransferAgentSet(address indexed agent, bool allowed);
 
     address public constant VRF_COORDINATOR = 0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625;
-    bytes32 public constant KEY_HASH = 0x474e34a077df58807dbe9c96d3c009d62c0a9c88e0b6c7b3e5f48d8f9e33a19b;
+    bytes32 public constant KEY_HASH = 0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c;
 
     uint64 s_subscriptionId;
     VRFCoordinatorV2Interface public immutable COORDINATOR;
