@@ -46,11 +46,13 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         uint256 maxWinners;
         uint256 price;
         bool publicSale;
+        bool isResaleAllowed;
     }
 
     struct SessionInfo {
         uint256 concertId;
         uint256 sessionId;
+        uint64 startAt;
         uint256[] tokenIds;
         address[] applications;
         address[] winners;
@@ -72,6 +74,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     mapping(address => bool) public isTransferAgent;
 
+    mapping(uint256 => uint256) public enteredAt; // tokenId -> timestamp(0이면 미입장)
 
     constructor(uint64 subscriptionId) 
         ERC721("DketNFT", "Dket") 
@@ -124,7 +127,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         address _organizer,
         string memory _title,
         uint256 _maxWinners,
-        uint256 _price
+        uint256 _price,
+        bool _isResaleAllowed
     ) external onlyOwner {
         require(concerts[_concertId].concertId == 0, "Concert already exists");
 
@@ -134,7 +138,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
             title: _title,
             maxWinners: _maxWinners,
             price: _price,
-            publicSale: false
+            publicSale: false,
+            isResaleAllowed: _isResaleAllowed
         });
 
         emit ConcertCreated(_concertId, _title, _organizer);
@@ -143,13 +148,18 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     function createSession(
         uint256 _concertId,
         uint256 _sessionId,
+        uint64 _startAt,
         address[] memory _applications
     ) external onlyOwner {
+        require(concerts[_concertId].concertId != 0, "Concert not found");
+        require(_startAt > block.timestamp, "startAt must be future");
+
         SessionInfo storage session = sessions[_sessionId];
         require(session.sessionId == 0, "Session exists");
 
         session.concertId = _concertId;
         session.sessionId = _sessionId;
+        session.startAt = _startAt;
         sessionStatus[_sessionId] = SessionStatus.Created;
 
         emit SessionCreated(_concertId, _sessionId, _applications.length);
@@ -162,7 +172,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
     function requestVRF(uint256 sessionId) public {
         require(sessions[sessionId].sessionId != 0, "Invalid session");
         SessionInfo storage session = sessions[sessionId];
-    
         require(session.sessionId != 0, "Session not exists");
 
         uint256 requestId = COORDINATOR.requestRandomWords(
@@ -234,7 +243,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     function setDrawn(uint256 sessionId) private {
         sessionStatus[sessionId] = SessionStatus.Drawn;
-
         emit SetDrawn(sessionId);
     }
 
@@ -297,10 +305,18 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         availableTokens[sessionId][idx] = availableTokens[sessionId][availableTokens[sessionId].length - 1];
         availableTokens[sessionId].pop();
 
+        _internalMove = true;
         _safeTransfer(owner(), buyer, tokenId, "");
+        _internalMove = false;
+
         sessionTicketOf[sessionId][buyer] = tokenId;
 
         emit PaymentTransferred(buyer, sessionId, tokenId, msg.value);
+    }
+
+    function enter(uint256 tokenId) external onlyOwner {
+        require((_ownerOf(tokenId) != address(0)) && (_ownerOf(tokenId) != owner()), "Invalid token");
+        enteredAt[tokenId] = block.timestamp;
     }
 
     function openPublicSale(uint256 concertId) external onlyOwner {
@@ -312,6 +328,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
 
     function getSessionInfo(uint256 sessionId) external view returns (
         uint256 concertId,
+        uint64 startAt,
         address[] memory applications,
         address[] memory winners,
         uint256[] memory tokenIds
@@ -320,10 +337,16 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2 {
         SessionInfo storage session = sessions[sessionId];
         return (
             session.concertId,
+            session.startAt,
             session.applications,
             session.winners,
             session.tokenIds
         );
+    }
+
+    function getConcertIdOfSession(uint256 sessionId) external view returns (uint256) {
+        require(sessions[sessionId].sessionId != 0, "Invalid session");
+        return sessions[sessionId].concertId;
     }
 
     function shuffle(address[] memory array, uint256 seed) private pure returns (address[] memory) {
