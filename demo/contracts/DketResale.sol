@@ -55,8 +55,8 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
     mapping(uint256 => uint256) public activeResaleIdByToken;
 
     // EIP-712
-    bytes32 private constant _PERMITBUY_TYPEHASH =
-        keccak256("PermitBuy(address buyer,uint256 resaleId,uint256 tokenId,uint256 price,uint64 expireAt)");
+    bytes32 private constant _PERMITPURCHASE_TYPEHASH =
+        keccak256("PermitPurchase(address buyer,uint256 resaleId,uint256 tokenId,uint256 price,uint64 expireAt)");
 
     event ResaleListed(uint256 indexed resaleId, uint256 indexed tokenId, uint256 indexed sessionId, address seller, uint256 price);
     event ResaleSold(uint256 indexed resaleId, uint256 indexed tokenId, address indexed seller, address buyer);
@@ -160,7 +160,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         bytes calldata signature
     ) internal view {
         bytes32 structHash = keccak256(abi.encode(
-            _PERMITBUY_TYPEHASH,
+            _PERMITPURCHASE_TYPEHASH,
             buyer,
             resaleId,
             tokenId,
