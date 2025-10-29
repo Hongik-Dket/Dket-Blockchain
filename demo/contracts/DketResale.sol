@@ -56,7 +56,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
 
     // EIP-712
     bytes32 private constant _PERMITBUY_TYPEHASH =
-        keccak256("PermitBuy(address buyer,uint256 resaleId,uint256 tokenId,uint256 price,uint64 expireAt)");
+        keccak256("PermitPurchase(address buyer,uint256 resaleId,uint256 tokenId,uint256 price,uint64 expireAt)");
 
     event ResaleListed(uint256 indexed resaleId, uint256 indexed tokenId, uint256 indexed sessionId, address seller, uint256 price);
     event ResaleSold(uint256 indexed resaleId, uint256 indexed tokenId, address indexed seller, address buyer);
