@@ -36,7 +36,6 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
     using ECDSA for bytes32;
 
     uint16 public constant BPS_DENOMINATOR = 10000;
-    uint16 public constant PRE_EVENT_CAP_BPS = 12000;  
     uint16 public constant ORGANIZER_FEE_BPS = 1000;
 
     IDketNFT public immutable nft;
@@ -85,16 +84,11 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         address seller = nft.ownerOf(tokenId);
         require(seller == _seller, "Invalid seller");
 
-        (uint256 concertId, uint64 startAt) = nft.getSessionHeader(sessionId);
+        (uint256 concertId, ) = nft.getSessionHeader(sessionId);
         require(concertId != 0, "Session not found");
 
-        (, , , , uint256 basePrice, , bool isResaleAllowed) = nft.concerts(concertId);
+        (, , , , , , bool isResaleAllowed) = nft.concerts(concertId);
         require(isResaleAllowed, "Resale not allowed");
-
-        if (block.timestamp <= startAt && nft.enteredAt(tokenId) == 0) {
-            uint256 cap = (basePrice * PRE_EVENT_CAP_BPS) / BPS_DENOMINATOR;
-            require(price <= cap, "Over resale cap");
-        }
 
         require(
             nft.isApprovedForAll(seller, address(this)) || nft.getApproved(tokenId) == address(this),
