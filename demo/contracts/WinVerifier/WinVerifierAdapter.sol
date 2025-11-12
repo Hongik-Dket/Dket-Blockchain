@@ -5,23 +5,16 @@ import "./IWinVerifier.sol";
 import "./WinVerifier_plonk.sol";
 
 contract WinVerifierAdapter is IWinVerifier {
-    VerifierPlonk public immutable verifier;
+    PlonkVerifier public immutable verifier;
 
     constructor(address _verifier) {
-        verifier = VerifierPlonk(_verifier);
+        verifier = PlonkVerifier(_verifier);
     }
 
     function verifyWinProof(
-        bytes calldata proofBytes,
-        bytes32 winnersRoot,
-        uint256 sessionId,
-        bytes32 paymentNullifier
+        uint256[24] calldata proof,
+        uint256[3]  calldata pubSignals
     ) external view override returns (bool) {
-        uint256[24] memory proof = abi.decode(proofBytes, (uint256[24]));
-        uint256[3] memory pub;
-        pub[0] = sessionId;
-        pub[1] = uint256(winnersRoot);
-        pub[2] = uint256(paymentNullifier);
-        return verifier.verifyProof(proof, pub);
+        return verifier.verifyProof(proof, pubSignals);
     }
 }
