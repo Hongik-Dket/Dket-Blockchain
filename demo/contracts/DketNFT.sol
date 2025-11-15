@@ -16,10 +16,8 @@ uint32 constant NUM_WORDS = 1;
 
 interface IWinVerifier {
     function verifyWinProof(
-        bytes calldata proof,
-        bytes32 winnersRoot,
-        uint256 sessionId,
-        bytes32 paymentNullifier
+        uint256[24] calldata proof,
+        uint256[3]  calldata pubSignals
     ) external view returns (bool);
 }
 
@@ -362,7 +360,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
 
     function buyTicket(
         uint256 sessionId,
-        bytes calldata proof,
+        uint256[24] calldata proof,
         bytes32 paymentNullifier
     ) public payable nonReentrant {
         address buyer = msg.sender;
@@ -383,16 +381,19 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
             bytes32 root = winnersRootOf[sessionId];
             require(root != bytes32(0), "WinnersRoot not set");
             require(!usedPaymentNullifier[paymentNullifier], "Nullifier used");
+
+            uint256[3] memory pubSignals;
+            pubSignals[0] = sessionId;
+            pubSignals[1] = uint256(root);
+            pubSignals[2] = uint256(paymentNullifier);
+
             require(
                 address(winVerifier) != address(0) &&
-                winVerifier.verifyWinProof(proof, root, sessionId, paymentNullifier),
+                winVerifier.verifyWinProof(proof, pubSignals),
                 "WIN proof invalid"
             );
 
             usedPaymentNullifier[paymentNullifier] = true;
-        } else {
-            require(proof.length == 0, "Proof must be empty in public sale");
-            require(paymentNullifier == bytes32(0), "Nullifier must be zero in public sale");
         }
 
         (bool success, ) = payable(concert.organizer).call{value: msg.value}("");

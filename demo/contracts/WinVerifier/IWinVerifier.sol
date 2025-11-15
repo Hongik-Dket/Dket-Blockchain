@@ -3,9 +3,7 @@ pragma solidity ^0.8.19;
 
 interface IWinVerifier {
     function verifyWinProof(
-        bytes calldata proof,
-        bytes32 winnersRoot,
-        uint256 sessionId,
-        bytes32 paymentNullifier
+        uint256[24] calldata proof,
+        uint256[3] calldata pubSignals
     ) external view returns (bool);
 }
