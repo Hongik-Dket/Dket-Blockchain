@@ -49,6 +49,10 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         bool    isSold; 
     }
 
+
+    enum ResaleStatus { Available, Sold, Canceled }
+    mapping(uint256 => ResaleStatus) public resaleStatus;
+
     mapping(uint256 => ResaleInfo) public resales;       // resaleId -> info
     mapping(uint256 => uint256) public activeResaleIdByToken;
 
@@ -61,7 +65,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
 
     event ResaleListed(uint256 indexed resaleId, uint256 indexed tokenId, uint256 indexed sessionId, address seller, uint256 price);
     event ResaleSold(uint256 indexed resaleId, uint256 indexed tokenId, address indexed seller, address buyer);
-
+    event ResaleCanceled(uint256 indexed resaleId);
 
     constructor(address _dketNft) 
         Ownable(msg.sender)
@@ -116,6 +120,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         });
 
         activeResaleIdByToken[tokenId] = resaleId;
+        resaleStatus[resaleId] = ResaleStatus.Available;
 
         emit ResaleListed(resaleId, tokenId, sessionId, seller, price);
     }
@@ -132,6 +137,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         require(!r.isSold, "Already sold");
         require(r.tokenId == tokenId, "Token mismatch");
         require(activeResaleIdByToken[tokenId] == resaleId, "Listing not active");
+        require(resaleStatus[resaleId] == ResaleStatus.Available, "Unavailable resale");
         require(r.price == msg.value, "Incorrect payment amount");
         require(block.timestamp <= expireAt, "Permit expired");
         require(dketNFT.ownerOf(tokenId) == r.seller, "Seller no longer owner");
@@ -152,6 +158,8 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
 
         uint256 entered = dketNFT.enteredAt(tokenId);
         settleAndTransfer(organizer, r.seller, tokenId, startAt, basePrice, entered);
+
+        resaleStatus[resaleId] = ResaleStatus.Sold;
 
         emit ResaleSold(resaleId, tokenId, r.seller, msg.sender);
     }
@@ -209,5 +217,22 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
 
         dketNFT.safeTransferFrom(seller, msg.sender, tokenId);
 
+    }
+
+    function cancelResale(uint256 resaleId) external onlyOwner {
+        ResaleInfo storage r = resales[resaleId];
+        require(r.resaleId != 0, "Resale not found");
+        require(!r.isSold, "Already sold");
+        require(resaleStatus[resaleId] == ResaleStatus.Available, "Unavailable resale");
+
+        uint256 tokenId = r.tokenId;
+
+        if (activeResaleIdByToken[tokenId] == resaleId) {
+            activeResaleIdByToken[tokenId] = 0;
+        }
+
+        resaleStatus[resaleId] = ResaleStatus.Canceled;
+
+        emit ResaleCanceled(resaleId);
     }
 }
