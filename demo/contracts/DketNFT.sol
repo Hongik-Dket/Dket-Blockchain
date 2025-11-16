@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import "./IVerifier.sol";
+
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -14,14 +16,11 @@ uint16 constant REQUEST_CONFIRMATIONS = 3;
 uint32 constant CALLBACK_GAS_LIMIT = 300000;
 uint32 constant NUM_WORDS = 1;
 
-interface IWinVerifier {
-    function verifyWinProof(
-        uint256[24] calldata proof,
-        uint256[3]  calldata pubSignals
-    ) external view returns (bool);
-}
 
 contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuard {
+
+    event TransferAgentSet(address indexed agent, bool allowed);
+    event VerifierSet(address verifier);
 
     event ConcertCreated(uint256 indexed concertId, string title, address organizer);
     event SessionCreated(uint256 indexed concertId, uint256 indexed sessionId);
@@ -34,7 +33,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
     event ApplicantsListCommitted(uint256 indexed sessionId, bytes32 listHash, uint32 count);
     event WinnersDrawn(uint256 indexed sessionId, uint32 count, uint32[] winnerIdx);
     event WinnersRootSet(uint256 indexed sessionId, bytes32 winnersRoot);
-    event VerifierSet(address win);
 
     event SetDrawn(uint256 indexed sessionId);
 
@@ -42,7 +40,9 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
 
     event PublicSaleOpened(uint256 indexed concertId);
 
-    event TransferAgentSet(address indexed agent, bool allowed);
+    event OwnersRootSet(uint256 indexed sessionId, bytes32 ownersRoot);
+
+    event Entered(uint256 indexed sessionId, uint256 indexed tokenId);
 
 
     address public constant VRF_COORDINATOR = 0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625;
@@ -91,19 +91,14 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
     mapping(uint256 => bytes32[]) public winnerLeavesOf;        // sessionId -> winner leaves
 
     mapping(uint256 => bytes32) public winnersRootOf;       // Poseidon-Merkle winners root
-    mapping(bytes32 => bool)    public usedPaymentNullifier; // Poseidon(IC,sessionId,"pay")
+    mapping(uint256 => bytes32) public ownersRootOf;        // Poseidon-Merkle owners root
+
+    mapping(bytes32 => bool)    public usedPaymentNullifier; // Poseidon(IC,sessionId,PAY_TAG_CONST)
+    mapping(bytes32 => bool)    public usedEntryNullifier;   // Poseidon(IC, sessionId, ENTER_TAG_CONST)
 
     mapping(address => bool) public isTransferAgent;
 
     mapping(uint256 => uint256) public enteredAt; // tokenId -> timestamp(0이면 미입장)
-
-
-    IWinVerifier public winVerifier;
-
-    function setWinVerifier(address win) external onlyOwner {
-        winVerifier = IWinVerifier(win);
-        emit VerifierSet(win);
-    }
 
 
     constructor(uint64 subscriptionId) 
@@ -118,6 +113,14 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
             isTransferAgent[address(msg.sender)] = true;
 
             setApprovalForAll(address(msg.sender), true);
+    }
+
+
+    IVerifier public verifier;
+
+    function setVerifier(address _verifier) external onlyOwner {
+        verifier = IVerifier(_verifier);
+        emit VerifierSet(_verifier);
     }
 
     
@@ -152,6 +155,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
         require(isTransferAgent[to], "Only transfer agents can be approved");
         super.approve(to, tokenId);
     }
+
 
     function createConcert(
         uint256 _concertId,
@@ -202,9 +206,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
     }
 
     function requestVRF(uint256 sessionId) public onlyOwner {
-        require(sessions[sessionId].sessionId != 0, "Invalid session");
-        SessionInfo storage session = sessions[sessionId];
-        require(session.sessionId != 0, "Session not exists");
+        require(sessions[sessionId].sessionId != 0, "Session not exists");
 
         uint256 requestId = COORDINATOR.requestRandomWords(
             KEY_HASH,
@@ -230,7 +232,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
     }
 
     function mintSessionTicket(uint256 sessionId, string[] memory uris) external onlyOwner {
-        require(sessions[sessionId].sessionId != 0, "Invalid session");
+        require(sessions[sessionId].sessionId != 0, "Session not exists");
         SessionInfo storage session = sessions[sessionId];
 
         require(sessionStatus[sessionId] != SessionStatus.Created, "Invalid state");
@@ -267,7 +269,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
         bytes32 listHash,
         uint32 count
     ) external onlyOwner {
-        require(sessions[sessionId].sessionId != 0, "Invalid session");
+        require(sessions[sessionId].sessionId != 0, "Session not exists");
         require(applicantsListHashOf[sessionId] == bytes32(0), "List committed");
         require(count > 0, "Empty applicants");
 
@@ -340,6 +342,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
     }
 
     function setDrawn(uint256 sessionId) external onlyOwner {
+        require(sessions[sessionId].sessionId != 0, "Session not exists");
+        
         if (sessionStatus[sessionId] == SessionStatus.Minted) {
             sessionStatus[sessionId] = SessionStatus.Ready;
         } else {
@@ -368,7 +372,7 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
         require(sessionTicketOf[sessionId][buyer] == 0, "Already purchased");
         require(availableTokens[sessionId].length > 0, "Sold out");
 
-        require(sessions[sessionId].sessionId != 0, "Invalid session");
+        require(sessions[sessionId].sessionId != 0, "Session not exists");
         SessionInfo storage session = sessions[sessionId];
 
         require(concerts[session.concertId].concertId != 0, "Invalid concert");
@@ -388,8 +392,8 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
             pubSignals[2] = uint256(paymentNullifier);
 
             require(
-                address(winVerifier) != address(0) &&
-                winVerifier.verifyWinProof(proof, pubSignals),
+                address(verifier) != address(0) &&
+                verifier.verifyWinProof(proof, pubSignals),
                 "WIN proof invalid"
             );
 
@@ -419,11 +423,45 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
         emit PaymentTransferred(buyer, sessionId, tokenId, msg.value);
     }
 
-    function enter(uint256 tokenId) external onlyOwner {
+    function updateOwnersRoot(uint256 sessionId, bytes32 ownersRoot) external onlyOwner {
+        require(sessions[sessionId].sessionId != 0, "Session not exists");
+        require(sessionStatus[sessionId] == SessionStatus.Ready, "Invalid state");
+
+        ownersRootOf[sessionId] = ownersRoot;
+
+        emit OwnersRootSet(sessionId, ownersRoot);
+    }
+
+    function enter(
+        uint256 sessionId,
+        uint256 tokenId,
+        uint256[24] calldata proof,
+        bytes32 entryNullifier
+    ) external onlyOwner {
+        require(sessions[sessionId].sessionId != 0, "Session not exists");
+
         require((_ownerOf(tokenId) != address(0)) && (_ownerOf(tokenId) != owner()), "Invalid token");
         require(enteredAt[tokenId] == 0, "Already entered");
-        
+
+        bytes32 root = ownersRootOf[sessionId];
+        require(root != bytes32(0), "OwnersRoot not set");
+        require(!usedEntryNullifier[entryNullifier], "Nullifier used");
+
+        uint256[3] memory pubSignals;
+        pubSignals[0] = sessionId;
+        pubSignals[1] = uint256(root);
+        pubSignals[2] = uint256(entryNullifier);
+
+        require(
+            address(verifier) != address(0) &&
+            verifier.verifyOwnProof(proof, pubSignals),
+            "OWN proof invalid"
+        );
+
+        usedEntryNullifier[entryNullifier] = true;
         enteredAt[tokenId] = block.timestamp;
+
+        emit Entered(sessionId, tokenId);
     }
 
 
@@ -436,51 +474,6 @@ contract DketNFT is ERC721URIStorage, Ownable, VRFConsumerBaseV2, ReentrancyGuar
         require(sessions[sessionId].sessionId != 0, "Invalid session");
 
         return (sessions[sessionId].concertId, sessions[sessionId].startAt);
-    }
-
-    function winnerIndexAt(uint256 sessionId, uint32 targetRank) public view returns (uint32 index) {
-        require(sessionRandomSeed[sessionId] != 0, "Seed not set");
-        uint32 N = applicantsCountOf[sessionId];
-        require(N > 0, "No applicants");
-
-        bool[] memory used = new bool[](N);
-        uint32 found = 0;
-        uint32 step = 0;
-
-        while (true) {
-            uint32 idx = drawIndex(sessionId, step);
-            step++;
-            if (!used[idx]) {
-                if (found == targetRank) {
-                    index = idx;
-                    return index;
-                }
-
-                used[idx] = true;
-                found++;
-            }
-        }
-    }
-
-    function computeWinnerIndices(uint256 sessionId, uint32 k) external view returns (uint32[] memory out) {
-        require(sessionRandomSeed[sessionId] != 0, "Seed not set");
-        uint32 N = applicantsCountOf[sessionId];
-        require(N > 0 && k > 0 && k <= N, "Bad args");
-
-        out = new uint32[](k);
-        bool[] memory used = new bool[](N);
-        uint32 found = 0;
-        uint32 step = 0;
-
-        while (found < k) {
-            uint32 idx = drawIndex(sessionId, step);
-            step++;
-
-            if (!used[idx]) {
-                used[idx] = true;
-                out[found++] = idx;
-            }
-        }
     }
 
 }

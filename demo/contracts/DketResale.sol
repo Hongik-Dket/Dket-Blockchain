@@ -28,7 +28,6 @@ interface IDketNFT {
         bool /*publicSale*/,
         bool /*isResaleAllowed*/
     );
-
     function enteredAt(uint256 tokenId) external view returns (uint256);
 }
 
@@ -38,7 +37,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
     uint16 public constant BPS_DENOMINATOR = 10000;
     uint16 public constant ORGANIZER_FEE_BPS = 1000;
 
-    IDketNFT public immutable nft;
+    IDketNFT public immutable dketNFT;
     address public resaleSigner;
 
     struct ResaleInfo {
@@ -57,16 +56,28 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
     bytes32 private constant _PERMITPURCHASE_TYPEHASH =
         keccak256("PermitPurchase(address buyer,uint256 resaleId,uint256 tokenId,uint256 price,uint64 expireAt)");
 
+
+    event ResaleSignerSet(address resaleSigner);
+
     event ResaleListed(uint256 indexed resaleId, uint256 indexed tokenId, uint256 indexed sessionId, address seller, uint256 price);
     event ResaleSold(uint256 indexed resaleId, uint256 indexed tokenId, address indexed seller, address buyer);
 
 
-    constructor(address dketNft) 
+    constructor(address _dketNft) 
         Ownable(msg.sender)
         EIP712("DketResalePermit", "1") {
-            require(dketNft != address(0), "nft=0");
-            nft = IDketNFT(dketNft);
-            resaleSigner = nft.owner();
+            require(_dketNft != address(0), "nft=0");
+            dketNFT = IDketNFT(_dketNft);
+            resaleSigner = dketNFT.owner();
+
+            emit ResaleSignerSet(resaleSigner);
+    }
+
+    function setResaleSigner(address signer) external onlyOwner {
+        require(signer != address(0), "signer=0");
+
+        resaleSigner = signer;
+        emit ResaleSignerSet(resaleSigner);
     }
 
     function listResale(
@@ -81,17 +92,17 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         uint256 activeId = activeResaleIdByToken[tokenId];
         require(activeId == 0 || resales[activeId].isSold, "Token already listed");
 
-        address seller = nft.ownerOf(tokenId);
+        address seller = dketNFT.ownerOf(tokenId);
         require(seller == _seller, "Invalid seller");
 
-        (uint256 concertId, ) = nft.getSessionHeader(sessionId);
+        (uint256 concertId, ) = dketNFT.getSessionHeader(sessionId);
         require(concertId != 0, "Session not found");
 
-        (, , , , , , bool isResaleAllowed) = nft.concerts(concertId);
+        (, , , , , , bool isResaleAllowed) = dketNFT.concerts(concertId);
         require(isResaleAllowed, "Resale not allowed");
 
         require(
-            nft.isApprovedForAll(seller, address(this)) || nft.getApproved(tokenId) == address(this),
+            dketNFT.isApprovedForAll(seller, address(this)) || dketNFT.getApproved(tokenId) == address(this),
             "Approve contract first"
         );
 
@@ -123,14 +134,14 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         require(activeResaleIdByToken[tokenId] == resaleId, "Listing not active");
         require(r.price == msg.value, "Incorrect payment amount");
         require(block.timestamp <= expireAt, "Permit expired");
-        require(nft.ownerOf(tokenId) == r.seller, "Seller no longer owner");
+        require(dketNFT.ownerOf(tokenId) == r.seller, "Seller no longer owner");
         require(
-        nft.isApprovedForAll(r.seller, address(this)) || nft.getApproved(tokenId) == address(this),
+        dketNFT.isApprovedForAll(r.seller, address(this)) || dketNFT.getApproved(tokenId) == address(this),
         "Not approved"
         );
 
-        (uint256 concertId, uint64 startAt) = nft.getSessionHeader(r.sessionId);
-        (, address organizer, , , uint256 basePrice, , ) = nft.concerts(concertId);
+        (uint256 concertId, uint64 startAt) = dketNFT.getSessionHeader(r.sessionId);
+        (, address organizer, , , uint256 basePrice, , ) = dketNFT.concerts(concertId);
 
         verifySig(msg.sender, resaleId, tokenId, msg.value, expireAt, signature);
 
@@ -139,7 +150,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
             activeResaleIdByToken[tokenId] = 0;
         }
 
-        uint256 entered = nft.enteredAt(tokenId);
+        uint256 entered = dketNFT.enteredAt(tokenId);
         settleAndTransfer(organizer, r.seller, tokenId, startAt, basePrice, entered);
 
         emit ResaleSold(resaleId, tokenId, r.seller, msg.sender);
@@ -196,7 +207,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         (bool ok2,) = payable(seller).call{value: sellerNet}("");
         require(ok2, "Seller payout failed");
 
-        nft.safeTransferFrom(seller, msg.sender, tokenId);
+        dketNFT.safeTransferFrom(seller, msg.sender, tokenId);
 
     }
 }
