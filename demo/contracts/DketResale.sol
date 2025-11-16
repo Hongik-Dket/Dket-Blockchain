@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "./IVerifier.sol";
-
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -30,7 +28,6 @@ interface IDketNFT {
         bool /*publicSale*/,
         bool /*isResaleAllowed*/
     );
-    function ownersRootOf(uint256 sessionId) external view returns (bytes32);
     function enteredAt(uint256 tokenId) external view returns (uint256);
 }
 
@@ -41,7 +38,6 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
     uint16 public constant ORGANIZER_FEE_BPS = 1000;
 
     IDketNFT public immutable dketNFT;
-    IVerifier public verifier;
     address public resaleSigner;
 
     struct ResaleInfo {
@@ -61,7 +57,6 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         keccak256("PermitPurchase(address buyer,uint256 resaleId,uint256 tokenId,uint256 price,uint64 expireAt)");
 
 
-    event VerifierSet(address verifier);
     event ResaleSignerSet(address resaleSigner);
 
     event ResaleListed(uint256 indexed resaleId, uint256 indexed tokenId, uint256 indexed sessionId, address seller, uint256 price);
@@ -78,16 +73,9 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
             emit ResaleSignerSet(resaleSigner);
     }
 
-    function setVerifier(address _verifier) external onlyOwner {
-        require(_verifier != address(0), "verifier=0");
-
-        verifier = IVerifier(_verifier);
-        emit VerifierSet(_verifier);
-    }
-
     function setResaleSigner(address signer) external onlyOwner {
         require(signer != address(0), "signer=0");
-        
+
         resaleSigner = signer;
         emit ResaleSignerSet(resaleSigner);
     }
@@ -97,9 +85,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
         uint256 tokenId,
         uint256 sessionId,
         address _seller,
-        uint256 price,
-        uint256[24] calldata proof,
-        bytes32 entryNullifier
+        uint256 price
     ) external onlyOwner {
         require(resales[resaleId].resaleId == 0, "Resale already exists");
 
@@ -114,20 +100,6 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
 
         (, , , , , , bool isResaleAllowed) = dketNFT.concerts(concertId);
         require(isResaleAllowed, "Resale not allowed");
-
-        bytes32 ownersRoot = dketNFT.ownersRootOf(sessionId);
-        require(ownersRoot != bytes32(0), "OwnersRoot not set");
-
-        uint256[3] memory pubSignals;
-        pubSignals[0] = sessionId;
-        pubSignals[1] = uint256(ownersRoot);
-        pubSignals[2] = uint256(entryNullifier);
-
-        require(
-            address(verifier) != address(0) &&
-            verifier.verifyOwnProof(proof, pubSignals),
-            "OWN proof invalid"
-        );
 
         require(
             dketNFT.isApprovedForAll(seller, address(this)) || dketNFT.getApproved(tokenId) == address(this),
