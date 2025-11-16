@@ -65,7 +65,7 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
 
     event ResaleListed(uint256 indexed resaleId, uint256 indexed tokenId, uint256 indexed sessionId, address seller, uint256 price);
     event ResaleSold(uint256 indexed resaleId, uint256 indexed tokenId, address indexed seller, address buyer);
-    event ResaleCanceled(uint256 indexed resaleId);
+    event ResaleCanceled(uint256[] resaleIds);
 
     constructor(address _dketNft) 
         Ownable(msg.sender)
@@ -219,20 +219,27 @@ contract DketResale is Ownable, EIP712, ReentrancyGuard {
 
     }
 
-    function cancelResale(uint256 resaleId) external onlyOwner {
-        ResaleInfo storage r = resales[resaleId];
-        require(r.resaleId != 0, "Resale not found");
-        require(!r.isSold, "Already sold");
-        require(resaleStatus[resaleId] == ResaleStatus.Available, "Unavailable resale");
+    function cancelResaleBatch(uint256[] calldata resaleIds) external onlyOwner {
+        uint256 len = resaleIds.length;
 
-        uint256 tokenId = r.tokenId;
+        for (uint256 i = 0; i < len; i++) {
+            uint256 resaleId = resaleIds[i];
+            
+            ResaleInfo storage r = resales[resaleId];
 
-        if (activeResaleIdByToken[tokenId] == resaleId) {
-            activeResaleIdByToken[tokenId] = 0;
+            if (r.resaleId == 0 || r.isSold || resaleStatus[resaleId] != ResaleStatus.Available) {
+                continue;
+            }
+
+            uint256 tokenId = r.tokenId;
+
+            if (activeResaleIdByToken[tokenId] == resaleId) {
+                activeResaleIdByToken[tokenId] = 0;
+            }
+
+            resaleStatus[resaleId] = ResaleStatus.CANCELED;
         }
 
-        resaleStatus[resaleId] = ResaleStatus.Canceled;
-
-        emit ResaleCanceled(resaleId);
+        emit ResaleCanceled(resaleIds);
     }
 }
